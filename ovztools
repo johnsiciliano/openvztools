@@ -1,0 +1,108 @@
+#!/bin/bash
+
+checkroot () {
+	if [`whoami` != 'root']; then
+		echo "You have to run this as root with the correct tools"
+		exit 0;
+	else
+	getoptions
+	fi
+
+}
+
+startvps () {
+vzctl start $VPSID
+}
+stopvps () {
+vzctl stop $VPSID
+}
+
+doall () {
+stopvps
+vzctl set $VPSID --features ppp:on --save
+vzctl set $VPSID --devices c:105:0:rw --save
+vzctl set $VPSID --devices c:10:200:rw --save
+vzctl set $VPSID --capability net_admin:on --save
+vzctl set $1 --iptables ipt_REJECT --iptables ipt_state --iptables ipt_tos --iptables ipt_recent --iptables ipt_TOS --iptables ipt_LOG --iptables ip_conntrack --iptables ipt_limit --iptables ipt_multiport --iptables iptable_filter --iptables iptable_mangle --iptables ipt_TCPMSS --iptables ipt_tcpmss --iptables ipt_ttl --iptables ipt_length --iptables ipt_state --iptables iptable_nat --iptables ip_nat_ftp --save
+startvps
+vzctl exec $VPSID mknod /dev/ppp c 108 0
+vzctl exec $VPSID chmod 600 /dev/ppp
+vzctl exec $VPSID mkdir -p /dev/net
+vzctl exec $VPSID mknod /dev/net/tun c 10 200
+vzctl exec $VPSID chmod 600 /dev/net/tun
+}
+makeppp () {
+stopvps
+vzctl set $VPSID --features ppp:on --save
+vzctl set $VPSID --devices c:105:0:rw --save
+startvps
+vzctl exec $VPSID mknod /dev/ppp c 108 0
+vzctl exec $VPSID chmod 600 /dev/ppp
+}
+dotuntap () {
+stopvps
+vzctl set $VPSID --devices c:10:200:rw --save
+vzctl set $VPSID --capability net_admin:on --save
+startvps
+vzctl exec $VPSID mkdir -p /dev/net
+vzctl exec $VPSID mknod /dev/net/tun c 10 200
+vzctl exec $VPSID chmod 600 /dev/net/tun
+}
+doiptablesnat () {
+stopvps
+vzctl set $VPSID --iptables ipt_REJECT --iptables ipt_state --iptables ipt_tos --iptables ipt_recent --iptables ipt_TOS --iptables ipt_LOG --iptables ip_conntrack --iptables ipt_limit --iptables ipt_multiport --iptables iptable_filter --iptables iptable_mangle --iptables ipt_TCPMSS --iptables ipt_tcpmss --iptables ipt_ttl --iptables ipt_length --iptables ipt_state --iptables iptable_nat --iptables ip_nat_ftp --save
+startvps
+}
+
+getoptions () {
+	while [ option != "q" ]; do
+		echo "Choose what you want to do"
+		echo ""
+		echo "1) Enable TUN/TAP for an OpenVZ container"
+		echo "2) Enable IPTables_Nat for an OpenVZ container"
+		echo "3) Enable PPP for an OpenVZ container"
+		echo "4) Enable all 3"
+		echo ""
+		echo "Enter 'q' to exit"
+		echo ""
+		read -p "Option [1-4]: " option
+	 	case $option in
+			1)
+			stopvps
+			dotuntap
+			startvps
+			;;
+			2)
+			doiptablesnat
+			;;
+			3)
+			makeppp
+			;;
+			4)
+			makeppp
+			doiptablesnat
+			dotuntap
+			startvps
+			;;
+			q)
+			exit
+			;;
+		esac
+done
+
+}
+
+if [ "$1" == "" ]; then
+	echo "Test"
+        read -p "What ID is the VPS ID?: " VPSID
+        echo $VPSID
+	getoptions
+	exit
+else
+      VPSID=$1
+       echo $VPSID
+	getoptions
+	exit
+fi
+}
+
